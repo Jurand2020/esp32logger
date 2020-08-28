@@ -43,8 +43,6 @@ Preferences preferences;
 
 RTC_DS3231 RTC;
 
-const char* ssid = "BSOD";
-const char* password = "q!p0nyprocentujom";
 const char* LogFileName = "/logs/%04ld-%02d_hmd.csv";
 
 // SD Reader
@@ -186,7 +184,17 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.onEvent(WiFiGotIP, WiFiEvent_t::SYSTEM_EVENT_STA_GOT_IP);
   WiFi.onEvent(WiFiLostIP, WiFiEvent_t::SYSTEM_EVENT_STA_LOST_IP);
-  WiFi.begin(ssid, password);
+
+
+  String ssid = preferences.getString("clientSSID");
+  String password = preferences.getString("clientSSIDpass");
+
+  if(ssid.length() != 0 && password.length() !=0){
+    WiFi.begin(ssid.c_str(), password.c_str());
+  }
+  else {
+    Serial.println("Wifi client not configured.");
+  }
 
   Serial.print("Initializing SD card...");
   // see if the card is present and can be initialized:
