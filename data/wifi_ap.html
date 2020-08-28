@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+ 
+  <head>
+      <script src="src/jquery-3.5.1.min.js"></script>
+      <script src="src/bootstrap.bundle.min.js"></script>
+          <link rel="stylesheet" type="text/css" href="src/bootstrap.min.css">
+  </head>
+
+  <body>
+    <div class="container">
+      <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">THLogger</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item ">
+              <a class="nav-link" href="index.html">State</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="logs.html">Logs</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="wifi.html">Wifi</a>
+            </li>
+            <li class="nav-item active">
+              <a class="nav-link" href="wifi_ap.html">Wifi AP <span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="settings.html">Settings</a>
+            </li>
+
+          </ul>
+        </div>
+      </nav>
+      <div class="jumbotron jumbotron-fluid">
+        <div class="container">
+          <h1 class="display-4">Wifi AP</h1>
+          <p class="lead">Wifi soft access point configuration</p> 
+        </div>
+      </div>
+      
+      <form action="/set_wifi_ap" method="POST">
+        <div class="form-group form-check">
+          <input type="checkbox" class="form-check-input" id="apEnabled" %AP_ENABLED%>
+          <label class="form-check-label" for="apEnabled">AP enabled</label>
+        </div>
+        <div class="form-group">
+          <label for="apSSID">AP SSID</label>
+          <input type="text" class="form-control" id="apSSID" value="%AP_SSID%">
+        </div>
+        <div class="form-group">
+          <label for="apSSIDpass">Password</label>
+          <input type="password" class="form-control" id="apSSIDpass">
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </form>
+    </div>
+  </body>
+</html>

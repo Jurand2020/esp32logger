@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+ 
+  <head>
+      <script src="src/jquery-3.5.1.min.js"></script>
+      <script src="src/bootstrap.bundle.min.js"></script>
+          <link rel="stylesheet" type="text/css" href="src/bootstrap.min.css">
+  </head>
+
+  <body>
+    <div class="container">
+      <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="#">THLogger</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item ">
+              <a class="nav-link" href="index.html">State</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="logs.html">Logs</a>
+            </li>
+            <li class="nav-item active">
+              <a class="nav-link" href="wifi.html">Wifi <span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="wifi_ap.html">Wifi AP</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="settings.html">Settings</a>
+            </li>
+
+          </ul>
+        </div>
+      </nav>
+      <div class="jumbotron jumbotron-fluid">
+        <div class="container">
+          <h1 class="display-4">Wifi</h1>
+          <p class="lead">Wifi station configuration</p> 
+        </div>
+      </div>
+      
+      <form action="/set_wifi" method="POST">
+        <div class="form-group form-check">
+          <input type="checkbox" class="form-check-input" id="useEAP">
+          <label class="form-check-label" for="useEAP">Use EAP authentication</label>
+        </div>
+        <div class="form-group">
+          <label for="clientSSID">SSID</label>
+          <input type="text" class="form-control" id="clientSSID" aria-describedby="clientSSIDHelp">
+          <small id="clientSSIDHelp" class="form-text text-muted">Wifi to connect to as a station (client).</small>
+        </div>
+        <div class="form-group">
+          <label for="anonymousIdentity">Anonymous identity</label>
+          <input type="text" class="form-control" id="anonymousIdentity">
+        </div>
+        <div class="form-group">
+          <label for="identity">Identity</label>
+          <input type="text" class="form-control" id="identity">
+        </div>
+
+        <div class="form-group">
+          <label for="clientSSIDpass">Password</label>
+          <input type="password" class="form-control" id="clientSSIDpass">
+        </div>
+
+        <div class="form-group">
+          <label for="rootCA">Root CA certificate</label>
+          <input type="file" accept=".cer,.pem" class="form-control-file" id="rootCA" aria-describedby="rootCAHelp">
+          <small id="rootCAHelp" class="form-text text-muted">Root CA public certificate PEM format</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </form>
+    </div>
+  </body>
+</html>
