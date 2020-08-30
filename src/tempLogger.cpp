@@ -5,7 +5,9 @@
   Persistent logs on SD Card
   Logs use RTC time
 */
+#include "esp_wpa2.h"
 #include <WiFi.h>
+#include <DNSServer.h>
 #include "RTClib.h"
 
 #include <sys/time.h>
@@ -51,6 +53,7 @@ const int SD_CS = 5;
 #define SPI_SPEED SD_SCK_MHZ(16)
 SdFat sd;
 
+DNSServer dnsServer;
 AsyncWebServer server(80);
 
 // Temerature / humidity sensor
@@ -224,29 +227,56 @@ void setup() {
 //=============================================================================
 
 void StartWifi(){
+  dnsServer.stop();
   WiFi.disconnect();
   Serial.println("Initializing Wifi...");
 
   if(preferences.getBool("apEnabled", true)){
     WiFi.mode(WIFI_AP_STA);
     Serial.printf("Creating Accesspoint SSID %s, Channel %d\n",preferences.getString("apSSID","HTLogger").c_str(), preferences.getInt("apChannel",7));
-    WiFi.softAP(preferences.getString("apSSID","HTLogger").c_str(),preferences.getString("apSSIDpass","#qawsedrf").c_str(),preferences.getInt("apChannel",7),0,5);
+    WiFi.softAP(preferences.getString("apSSID","HTLogger").c_str(),preferences.getString("apSSIDpass","#qawsedrf").c_str(),preferences.getInt("apChannel",7),0,4);
+    dnsServer.start(53, "htlogger.local", WiFi.softAPIP());
   }
   else {
     WiFi.mode(WIFI_STA);
   }
 
-
-  String ssid = preferences.getString("clientSSID");
-  String password = preferences.getString("clientSSIDpass");
-
-  if(ssid.length() != 0 && password.length() !=0){
-    WiFi.begin(ssid.c_str(), password.c_str());
+  if(preferences.getBool("useEAP", false)){
+    esp_wifi_sta_wpa2_ent_set_identity((uint8_t *)preferences.getString("eapIdentity").c_str(), preferences.getString("eapIdentity").length());
+    esp_wifi_sta_wpa2_ent_set_username((uint8_t *)preferences.getString("eapAnIdentity").c_str(), preferences.getString("eapAnIdentity").length());
+    esp_wifi_sta_wpa2_ent_set_password((uint8_t *)preferences.getString("clientSSIDPass").c_str(), preferences.getString("clientSSIDPass").length()); 
+    if(SPIFFS.exists("/rootCA.cer")){
+      fs::File cer = SPIFFS.open("/rootCA.cer");
+      char* cerBuf = (char*)malloc(cer.size()+1);
+      if(cerBuf!=NULL)
+      {
+        int cerBufLen = cer.readBytes(cerBuf, cer.size()+1);
+        if(esp_wifi_sta_wpa2_ent_set_ca_cert((unsigned char*)cerBuf, cerBufLen) != ESP_OK){
+          Serial.println("ERROR esp_wifi_sta_wpa2_ent_set_ca_cert");
+        }
+        free(cerBuf);
+      }
+      else {
+        Serial.printf("malloc for CER buffer for %d bytes failed", cer.size());
+      }
+      cer.close();
+    }
+    esp_wpa2_config_t config = WPA2_CONFIG_INIT_DEFAULT();
+    if (esp_wifi_sta_wpa2_ent_enable(&config) != ESP_OK) {
+      Serial.println("WPA2 Settings Not OK");
+    }    
   }
   else {
-    Serial.println("Wifi client not configured.");
-  }
+    String ssid = preferences.getString("clientSSID");
+    String password = preferences.getString("clientSSIDpass");
 
+    if(ssid.length() != 0 && password.length() !=0){
+      WiFi.begin(ssid.c_str(), password.c_str());
+    }
+    else {
+      Serial.println("Wifi client not configured.");
+    }
+  }
 }
 
 //=============================================================================
@@ -293,19 +323,28 @@ void SetupNTP(){
   configTime(0, 0, ntpPool);
 }
 
-
 //=============================================================================
-// set hardware clock
-void SetRTC(tm *new_time) {
-  RTC.adjust(mktime(new_time));  
-  Serial.println("RTC adjusted");
+
+void SyncRTC(){
+  if(wifiState == MODULE_OK && rtcState == MODULE_OK){
+    time_t s_now;
+    time(&s_now);
+    time_t r_now = RTC.now().unixtime();
+    if(abs(r_now-s_now)>30){
+      RTC.adjust(DateTime(s_now));
+      Serial.println("RTC adjusted");
+    }
+  }
 }
+
 //=============================================================================
 
 void InitRTC() {
   DateTime init = DateTime(__DATE__, __TIME__);
   RTC.adjust(init);
 }
+
+//=============================================================================
 
 void StartWWW(){
     //  server.on("/", []() {
@@ -372,7 +411,7 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.printf("Local Time: %s\n", GetSysTimeString());
   Serial.printf("RTC Time: %s\n", GetTimeString());
 
-  if (!MDNS.begin("templogger")) {
+  if (!MDNS.begin("htlogger")) {
     Serial.println("Error setting up MDNS responder!");
   } else {
     Serial.println("mDNS responder started");
@@ -384,7 +423,6 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
 }
 
 //=============================================================================
-//=============================================================================
 bool startSD() {
   if (!sd.begin(SD_CS, SPI_SPEED)) {
     Serial.println("SD Card failed, or not present");
@@ -393,6 +431,8 @@ bool startSD() {
   }
   return true;
 }
+
+//=============================================================================
 
 String MakeLogsTable(){
   if (!startSD()){    
@@ -423,6 +463,8 @@ String MakeLogsTable(){
   return table;
 }
 
+//=============================================================================
+
 void onGetLogs(AsyncWebServerRequest * request) {
   if (!startSD()){
     request->send(500);
@@ -444,6 +486,8 @@ void onGetLogs(AsyncWebServerRequest * request) {
   AsyncSDFileResponse* resp = new AsyncSDFileResponse(sd, String(filename), String(), true);
   request->send(resp);
 }
+
+//=============================================================================
 
 void onApiWifi(AsyncWebServerRequest * request) {
   String json = "[";
@@ -471,12 +515,16 @@ void onApiWifi(AsyncWebServerRequest * request) {
   json = String();
 }
 
+//=============================================================================
+
 void UpdateStringPreference(const char* key, const String value){
   if(preferences.getString(key) != value){
     preferences.putString(key, value);
     Serial.printf("Updated %s\n",key);
   }
 }
+
+//=============================================================================
 
 void onSet_WifiPost(AsyncWebServerRequest * request) {
   AsyncWebParameter* useEap = request->getParam("useEAP", true);
@@ -500,7 +548,7 @@ void onSet_WifiPost(AsyncWebServerRequest * request) {
 
   AsyncWebParameter* anonymousIdentity = request->getParam("anonymousIdentity", true);
   if(anonymousIdentity!=NULL){
-    UpdateStringPreference("eapAnonymousIdentity", anonymousIdentity->value());
+    UpdateStringPreference("eapAnIdentity", anonymousIdentity->value());
   }
   AsyncWebParameter* identity = request->getParam("identity", true);
   if(identity!=NULL){
@@ -510,10 +558,13 @@ void onSet_WifiPost(AsyncWebServerRequest * request) {
   if(rootCA != NULL && rootCA->size() > 100){
     fs::File certFile = SPIFFS.open("rootCA.cer", "w");
     certFile.write((uint8_t*)rootCA->value().c_str(), rootCA->size());
+    Serial.println("EAP rootCA.cer updated");
   }
 
   request->redirect("/wifi.html?message=Saved");
 }
+
+//=============================================================================
 
 void onSet_Wifi_ApPost(AsyncWebServerRequest * request) {
   AsyncWebParameter* apEnabled = request->getParam("apEnabled", true);
@@ -542,6 +593,8 @@ void onSet_Wifi_ApPost(AsyncWebServerRequest * request) {
     UpdateStringPreference("apSSIDpass", apSSIDpass->value());
   }
 
+  StartWifi();
+  request->redirect("/wifi_ap.html?message=Saved");
 }
 
 void onSet_SettingsPost(AsyncWebServerRequest * request) {
@@ -551,6 +604,16 @@ void onSet_SettingsPost(AsyncWebServerRequest * request) {
     SetupNTP();
   } else {
     Serial.println("ntpPool not found");
+  }
+
+  AsyncWebParameter* devLogin = request->getParam("devLogin", true);
+  if(devLogin != NULL){
+    UpdateStringPreference("devLogin", devLogin->value());
+  }
+
+  AsyncWebParameter* devPass = request->getParam("devPass", true);
+  if(devPass != NULL){
+    UpdateStringPreference("devPass", devPass->value());
   }
 
   request->redirect("/settings.html?message=Saved");
@@ -686,7 +749,7 @@ String indexProc(const String& var) {
     return preferences.getString("clientSSID");
 
   if (var == "EAP_ANONYMOUS_IDENTITY")
-    return preferences.getString("eapAnonymousIdentity");
+    return preferences.getString("eapAnIdentity");
 
   if (var == "EAP_IDENTITY")
     return preferences.getString("eapIdentity");
@@ -982,8 +1045,12 @@ void PrintSysInfo() {
     display.println(WiFi.macAddress());
     display.print("IP:");
     display.println(WiFi.localIP());
+    display.print("AP IP:");
+    display.println(WiFi.softAPIP());
   } else {
-    display.println("Wifi NOT available");
+    display.print("AP IP:");
+    display.println(WiFi.softAPIP());
+    display.println("Wifi client NOT connected");
     display.print("MAC:");
     display.println(WiFi.macAddress());
   }
@@ -1101,12 +1168,13 @@ void loop() {
   if (tempLogTimer.isReady()) {
     tempLogTimer.reset();
     WriteReadingsToSD();
+    SyncRTC();
   }
   if (dispTimer.isReady()) {
     UpdateDisplay();
     dispTimer.reset();
   }
-
+  dnsServer.processNextRequest();
 }
 
 

@@ -10,7 +10,7 @@
   <body>
     <div class="container-fluid">
       <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="#">THLogger</a>
+        <a class="navbar-brand" href="#">HTLogger</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -45,6 +45,14 @@
         <div class="form-group">
           <label for="ntpPool">NTP pool</label>
           <input type="text" class="form-control" id="ntpPool" name="ntpPool" value="%NTP_POOL%">
+        </div>
+        <div class="form-group">
+          <label for="devLogin">Device access login name</label>
+          <input type="text" class="form-control" id="devLogin" name="devLogin" value="%DEV_LOGIN%">
+        </div>
+        <div class="form-group">
+          <label for="devPass">Device access password</label>
+          <input type="text" class="form-control" id="devPass" name="devPass" value="%DEV_PASS%">
         </div>
         <button type="submit" class="btn btn-primary">Submit</button>
       </form>
