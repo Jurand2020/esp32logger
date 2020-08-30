@@ -8,7 +8,7 @@
   </head>
 
   <body>
-    <div class="container">
+    <div class="container-fluid">
       <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <a class="navbar-brand" href="#">THLogger</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,16 +44,20 @@
       
       <form action="/set_wifi_ap" method="POST">
         <div class="form-group form-check">
-          <input type="checkbox" class="form-check-input" id="apEnabled" %AP_ENABLED%>
+          <input type="checkbox" class="form-check-input" id="apEnabled" name="apEnabled" %AP_ENABLED%>
           <label class="form-check-label" for="apEnabled">AP enabled</label>
+        </div> 
+         <div class="form-group">
+          <label for="apChannel">AP SSID</label>
+          <input type="number" min="1" max="12" class="form-control" id="apChannel" name="%apChannel%" value="%AP_CHANNEL%">
         </div>
         <div class="form-group">
           <label for="apSSID">AP SSID</label>
-          <input type="text" class="form-control" id="apSSID" value="%AP_SSID%">
+          <input type="text" class="form-control" id="apSSID" name="%apSSID%" value="%AP_SSID%">
         </div>
         <div class="form-group">
           <label for="apSSIDpass">Password</label>
-          <input type="password" class="form-control" id="apSSIDpass">
+          <input type="password" class="form-control" id="apSSIDpass" name="apSSIDpass">
         </div>
         <button type="submit" class="btn btn-primary">Submit</button>
       </form>

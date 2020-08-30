@@ -8,7 +8,7 @@
   </head>
 
   <body>
-    <div class="container">
+    <div class="container-fluid">
       <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <a class="navbar-brand" href="#">THLogger</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -44,7 +44,7 @@
       <form action="/set_settings" method="POST">
         <div class="form-group">
           <label for="ntpPool">NTP pool</label>
-          <input type="text" class="form-control" id="ntpPool" value="%NTP_POOL%">
+          <input type="text" class="form-control" id="ntpPool" name="ntpPool" value="%NTP_POOL%">
         </div>
         <button type="submit" class="btn btn-primary">Submit</button>
       </form>

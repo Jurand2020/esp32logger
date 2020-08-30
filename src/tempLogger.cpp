@@ -10,6 +10,7 @@
 
 #include <sys/time.h>
 #include <WiFiUdp.h>
+#include "lwip/apps/sntp.h"
 
 #include <ESPmDNS.h>
 
@@ -118,6 +119,9 @@ void onApiLogsGet(AsyncWebServerRequest * request);
 void onApiWifi(AsyncWebServerRequest * request);
 void onApiState(AsyncWebServerRequest * request);
 void notFound(AsyncWebServerRequest * request);
+void onSet_WifiPost(AsyncWebServerRequest * request);
+void onSet_Wifi_ApPost(AsyncWebServerRequest * request);
+void onSet_SettingsPost(AsyncWebServerRequest * request);
 String indexProc(const String& var);
 String GetTemperature();
 String GetHumidity();
@@ -126,8 +130,10 @@ float GetAvgTemperature ();
 float GetAvgHumidity ();
 void ScreenSaver(bool on);
 void DisplayReadings();
+void StartWifi();
 bool IsValidReading(float reading);
 String MakeLogsTable();
+void StartWWW();
 
 void InitLogArray() {
   for (int i = 0; i < LOG_SUPERSAMPLE; i++) {
@@ -136,6 +142,7 @@ void InitLogArray() {
   }
   th_log_idx = 0;
 }
+
 
 
 void setup() {
@@ -180,21 +187,11 @@ void setup() {
   display.display();
   Serial.println(F("OLED SSD1306 initialized"));
 
-  Serial.println("Initializing Wifi...");
-  WiFi.mode(WIFI_STA);
   WiFi.onEvent(WiFiGotIP, WiFiEvent_t::SYSTEM_EVENT_STA_GOT_IP);
   WiFi.onEvent(WiFiLostIP, WiFiEvent_t::SYSTEM_EVENT_STA_LOST_IP);
 
-
-  String ssid = preferences.getString("clientSSID");
-  String password = preferences.getString("clientSSIDpass");
-
-  if(ssid.length() != 0 && password.length() !=0){
-    WiFi.begin(ssid.c_str(), password.c_str());
-  }
-  else {
-    Serial.println("Wifi client not configured.");
-  }
+  StartWifi();
+  StartWWW();
 
   Serial.print("Initializing SD card...");
   // see if the card is present and can be initialized:
@@ -222,6 +219,34 @@ void setup() {
   boot_time = last_action_time;
   th_log_idx = 0;
   screen = 0;
+}
+
+//=============================================================================
+
+void StartWifi(){
+  WiFi.disconnect();
+  Serial.println("Initializing Wifi...");
+
+  if(preferences.getBool("apEnabled", true)){
+    WiFi.mode(WIFI_AP_STA);
+    Serial.printf("Creating Accesspoint SSID %s, Channel %d\n",preferences.getString("apSSID","HTLogger").c_str(), preferences.getInt("apChannel",7));
+    WiFi.softAP(preferences.getString("apSSID","HTLogger").c_str(),preferences.getString("apSSIDpass","#qawsedrf").c_str(),preferences.getInt("apChannel",7),0,5);
+  }
+  else {
+    WiFi.mode(WIFI_STA);
+  }
+
+
+  String ssid = preferences.getString("clientSSID");
+  String password = preferences.getString("clientSSIDpass");
+
+  if(ssid.length() != 0 && password.length() !=0){
+    WiFi.begin(ssid.c_str(), password.c_str());
+  }
+  else {
+    Serial.println("Wifi client not configured.");
+  }
+
 }
 
 //=============================================================================
@@ -260,7 +285,7 @@ void SetupNTP(){
 
   size_t len = preferences.getString("NTP_POOL", ntpPool, 25);
   if (len == 0) {
-    String pool = "pl.pool.ntp.org";
+    String pool = "europe.pool.ntp.org";
     sprintf(ntpPool, pool.c_str());
     preferences.putString("NTP_POOL", pool);
   }
@@ -282,18 +307,8 @@ void InitRTC() {
   RTC.adjust(init);
 }
 
-//=============================================================================
-// on wifi connected
-void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
-  Serial.print("WiFi connected, IP address: ");
-  Serial.println(IPAddress(info.got_ip.ip_info.ip.addr));
-
-  SetupNTP();
-
-  Serial.printf("Local Time: %s\n", GetSysTimeString());
-  Serial.printf("RTC Time: %s\n", GetTimeString());
-
-  //  server.on("/", []() {
+void StartWWW(){
+    //  server.on("/", []() {
   //    if (!server.authenticate(www_username, www_password))
   //    {
   //      return server.requestAuthentication(DIGEST_AUTH, www_realm, authFailResponse);
@@ -319,6 +334,20 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
     onApiWifi(request);
   });
 
+  server.on("/set_wifi", HTTP_POST,  [](AsyncWebServerRequest * request) {
+    onSet_WifiPost(request);
+  });
+
+  server.on("/set_wifi_ap", HTTP_POST,  [](AsyncWebServerRequest * request) {
+    onSet_Wifi_ApPost(request);
+  });
+
+
+  server.on("/set_settings", HTTP_POST,  [](AsyncWebServerRequest * request) {
+    onSet_SettingsPost(request);
+  });
+
+
   server.on("/api/state", HTTP_GET, [](AsyncWebServerRequest * request) {
     onApiState(request);
   });
@@ -330,6 +359,18 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.print(WiFi.localIP());
   Serial.println("/ in your browser to see it working");
 
+}
+
+//=============================================================================
+// on wifi connected
+void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
+  Serial.print("WiFi connected, IP address: ");
+  Serial.println(IPAddress(info.got_ip.ip_info.ip.addr));
+
+  SetupNTP();
+
+  Serial.printf("Local Time: %s\n", GetSysTimeString());
+  Serial.printf("RTC Time: %s\n", GetTimeString());
 
   if (!MDNS.begin("templogger")) {
     Serial.println("Error setting up MDNS responder!");
@@ -430,6 +471,91 @@ void onApiWifi(AsyncWebServerRequest * request) {
   json = String();
 }
 
+void UpdateStringPreference(const char* key, const String value){
+  if(preferences.getString(key) != value){
+    preferences.putString(key, value);
+    Serial.printf("Updated %s\n",key);
+  }
+}
+
+void onSet_WifiPost(AsyncWebServerRequest * request) {
+  AsyncWebParameter* useEap = request->getParam("useEAP", true);
+  if(useEap != NULL) {
+    if(preferences.getBool("useEap") != ( useEap->value() == "on")){
+      preferences.putBool("useEap", useEap->value() == "on");
+    }
+  } else
+  {
+    Serial.println("useEAP not found");
+  }
+
+  AsyncWebParameter* clientSSID = request->getParam("clientSSID", true);
+  if(clientSSID != NULL){
+    UpdateStringPreference("clientSSID", clientSSID->value());
+  }
+  AsyncWebParameter* clientSSIDPass = request->getParam("clientSSIDPass", true);
+  if(clientSSIDPass!=NULL){
+    UpdateStringPreference("clientSSIDPass", clientSSID->value());
+  }
+
+  AsyncWebParameter* anonymousIdentity = request->getParam("anonymousIdentity", true);
+  if(anonymousIdentity!=NULL){
+    UpdateStringPreference("eapAnonymousIdentity", anonymousIdentity->value());
+  }
+  AsyncWebParameter* identity = request->getParam("identity", true);
+  if(identity!=NULL){
+    UpdateStringPreference("eapIdentity", identity->value());
+  }
+  AsyncWebParameter* rootCA = request->getParam("rootCA", true, true);
+  if(rootCA != NULL && rootCA->size() > 100){
+    fs::File certFile = SPIFFS.open("rootCA.cer", "w");
+    certFile.write((uint8_t*)rootCA->value().c_str(), rootCA->size());
+  }
+
+  request->redirect("/wifi.html?message=Saved");
+}
+
+void onSet_Wifi_ApPost(AsyncWebServerRequest * request) {
+  AsyncWebParameter* apEnabled = request->getParam("apEnabled", true);
+  if(apEnabled != NULL) {
+    if(preferences.getBool("apEnabled") != ( apEnabled->value() == "on")){
+      preferences.putBool("apEnabled", apEnabled->value() == "on");
+    }
+  } else  {
+    Serial.println("apEnabled not found");
+  }
+
+  AsyncWebParameter* apChannel = request->getParam("apChannel", true);
+  if(apChannel!=NULL){
+    int channel;
+    scanf("%i", &channel);
+    if(preferences.getInt("apChannel",7)!=channel){
+      preferences.putInt("apChannel", channel);
+    }
+  }
+  AsyncWebParameter* apSSID = request->getParam("apSSID", true);
+  if(apSSID!=NULL){
+    UpdateStringPreference("apSSID", apSSID->value());
+  }
+  AsyncWebParameter* apSSIDpass = request->getParam("apSSIDpass", true);
+  if(apSSIDpass!=NULL){
+    UpdateStringPreference("apSSIDpass", apSSIDpass->value());
+  }
+
+}
+
+void onSet_SettingsPost(AsyncWebServerRequest * request) {
+  AsyncWebParameter* ntpPool = request->getParam("ntpPool", true);
+  if(ntpPool != NULL){
+    UpdateStringPreference("NTP_POOL", ntpPool->value());
+    SetupNTP();
+  } else {
+    Serial.println("ntpPool not found");
+  }
+
+  request->redirect("/settings.html?message=Saved");
+}
+
 void onApiState(AsyncWebServerRequest * request) {
   String json = "{";
   json += "\"temperature\":\"" + GetTemperature() + "\"";
@@ -485,6 +611,7 @@ void onApiLogsGet (AsyncWebServerRequest * request) {
 }
 
 void notFound(AsyncWebServerRequest *request) {
+#ifdef DEBUG_WWW
   Serial.printf("NOT_FOUND: ");
   if(request->method() == HTTP_GET)
     Serial.printf("GET");
@@ -527,7 +654,7 @@ void notFound(AsyncWebServerRequest *request) {
       Serial.printf("_GET[%s]: %s\n", p->name().c_str(), p->value().c_str());
     }
   }
-
+#endif
   request->send(404, "text/plain", "Not found");
 }
 //=============================================================================
@@ -548,9 +675,40 @@ String indexProc(const String& var) {
   if (var == "WIFI_S")
     return GetButtonStyle(wifiState);
 
+  if (var == "USE_EAP_CHECKED"){
+    if(preferences.getBool("useEap"))
+      return "checked";
+    else
+      return "";
+  }
+
+  if (var == "CLIENTSSID")
+    return preferences.getString("clientSSID");
+
+  if (var == "EAP_ANONYMOUS_IDENTITY")
+    return preferences.getString("eapAnonymousIdentity");
+
+  if (var == "EAP_IDENTITY")
+    return preferences.getString("eapIdentity");
+
+  if (var == "NTP_POOL")
+    return preferences.getString("NTP_POOL");
+
   if (var == "LOG_TABLE")
     return MakeLogsTable();
 
+  if (var == "AP_ENABLED"){
+    if(preferences.getBool("apEnabled", true))
+      return "checked";
+    else
+      return "";
+  }
+
+  if (var == "AP_SSID")
+    return preferences.getString("apSSID", "HTLogger");
+
+  if (var == "AP_CHANNEL")
+    return String(preferences.getInt("apChannel", 7));
 
   return String();
 }
@@ -816,21 +974,6 @@ void PrintSysInfo() {
   display.print("S:");
   display.println(GetSysTimeString());
 
-
-  //  switch(sntp_get_sync_status()){
-  //    case SNTP_SYNC_STATUS_RESET:
-  //      display.println("SNTP not active");
-  //      break;
-  //    case SNTP_SYNC_STATUS_COMPLETED:
-  //      display.println("SNTP synchronized");
-  //      break;
-  //    case SNTP_SYNC_STATUS_IN_PROGRESS:
-  //      display.println("SNTP in progress");
-  //      break;
-  //    default:
-  //      display.printf("SNTP unknown: %d\n",sntp_get_sync_status());
-  //      break;
-  //  }
 
   if (WiFi.isConnected()) {
     display.print("SSID:");

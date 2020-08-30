@@ -4,12 +4,44 @@
   <head>
       <script src="src/jquery-3.5.1.min.js"></script>
       <script src="src/bootstrap.bundle.min.js"></script>
-          <link rel="stylesheet" type="text/css" href="src/bootstrap.min.css">
-          <meta http-equiv="refresh" content="4"/>
+          <link rel="stylesheet" type="text/css" href="src/bootstrap.min.css">         
+
+      <script>
+          $( document ).ready(function() {
+            window.setInterval(doRefresh, 3000);            
+          });
+          function doRefresh(){
+            $.ajax({
+              url: "/api/state",
+              context: document.body
+            }).done(function(data) {
+              $("#temp").text(data.temperature + String.fromCharCode(176)+"C");
+              $("#humid").text(data.humidity + String.fromCharCode(37));
+              setBtnState($("#sdState"), data.sdState);
+              setBtnState($("#rtcState"), data.rtcState);
+              setBtnState($("#wifiState"), data.wifiState);
+              setBtnState($("#dhtState"), data.dhtState);
+            });            
+          }
+
+          function setBtnState(button, state){
+            button.removeClass("btn-danger btn-success btn-warning");
+            if(state=="1"){
+              button.addClass("btn-success");              
+            }
+            if(state=="0"){
+              button.addClass("btn-danger");              
+            }
+            if(state=="2"){
+              button.addClass("btn-warning");              
+            }
+          }
+
+      </script>
   </head>
 
   <body>
-    <div class="container">
+    <div class="container-fluid">
       <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <a class="navbar-brand" href="#">THLogger</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,23 +75,19 @@
         </div>
       </div>  
       <div class="row">
-        <div class="col-sm-2 col-md-3"></div>
-        <div class="col-sm-4 col-md-3"><button type="button" class="w-100 btn btn-lg btn-primary" disabled>Temperature</button></div>
-        <div class="col-sm-4 col-md-3"><button type="button" class="w-100 btn btn-secondary btn-lg" disabled>%TEMP%&#176;C</button></div>
-        <div class="col-sm-2 col-md-3"></div>
+        <div class="col"><h4 style="text-align: right;">Temperature</h4></div>
+        <div class="col"><h4 id="temp" >%TEMP%&#176;C</div>
       </div>
       <div class="row"><br></div>
       <div class="row">
-        <div class="col-sm-2 col-md-3"></div>
-        <div class="col-sm-4 col-md-3"><button type="button" class="w-100 btn btn-lg btn-primary" disabled>Humidity</button></div>
-        <div class="col-sm-4 col-md-3"><button type="button" class="w-100 btn btn-secondary btn-lg" disabled>%HUMID%&#37</button></div>
-        <div class="col-sm-2 col-md-3"></div>
+        <div class="col"><h4 style="text-align: right;">Humidity</h4></div>
+        <div class="col"><h4 id="humid">%HUMID%&#37</h4></div>
       </div>
       <hr class="my-4">
-      <button type="button" class="btn btn-%DHT_S%" disabled>DHT sensor</button>      
-      <button type="button" class="btn btn-%SD_S%" disabled>SD card</button>      
-      <button type="button" class="btn btn-%RTC_S%" disabled>Real Time Clock</button>     
-      <button type="button" class="btn btn-%WIFI_S%" disabled>WiFi client</button>      
+      <button type="button" id="dhtState" class="btn btn-%DHT_S%" disabled>DHT sensor</button>      
+      <button type="button" id="sdState" class="btn btn-%SD_S%" disabled>SD card</button>      
+      <button type="button" id="rtcState" class="btn btn-%RTC_S%" disabled>Real Time Clock</button>     
+      <button type="button" id="wifiState" class="btn btn-%WIFI_S%" disabled>WiFi client</button>      
     </div>
   </body>
 </html>
